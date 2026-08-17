@@ -5,8 +5,11 @@ from __future__ import annotations
 import asyncio          # <-- НУЖНО для asyncio.to_thread()
 import logging
 import threading        # <-- НУЖНО для threading.Thread
+import re
 
 from telethon import events
+
+from typing import Optional
 
 from mai.client import client, state
 from mai.config import CREATOR_USER_ID
@@ -40,6 +43,44 @@ _WHO_QUERY_PHRASES: set[str] = {
     "кто это",
 }
 
+_INVITE_LINK_PATTERN = re.compile(r'https?://t\.me/[\+\w]+|t\.me/joinchat/', re.IGNORECASE)
+_CLAIMS_CREATOR_PATTERN = re.compile(
+    r'\b(я\s*sakair|я\s*создатель|я\s*sakair1|i\s*am\s*sakair)\b', 
+    re.IGNORECASE
+)
+
+
+def _get_context_hints(user_text: str, user_id: int) -> str:
+    """Генерирует системные подсказки для LLM на основе сообщения."""
+    hints = []
+    
+    # 1. Инвайт-ссылка
+    if _INVITE_LINK_PATTERN.search(user_text):
+        hints.append("[SYSTEM HINT: This is a Telegram invite link. Mai hates these and refuses to join.]")
+    
+    # 2. Самозванство (притворяется Sakair1)
+    if _CLAIMS_CREATOR_PATTERN.search(user_text) and user_id != CREATOR_USER_ID:
+        hints.append(f"[SYSTEM HINT: This user (ID {user_id}) is LYING about being Sakair1. Real Sakair1 has different ID. Call them out.]")
+    
+    # 3. Очень короткое / странное сообщение
+    if len(user_text.strip()) < 3 and not user_text.strip().startswith("/"):
+        hints.append("[SYSTEM HINT: Message is too short/unclear. Respond with 'чё?' or emoji.]")
+    
+    if hints:
+        return "<hints>\n" + "\n".join(hints) + "\n</hints>"
+    return ""
+
+
+def _get_last_mai_message(chat_id: str) -> Optional[str]:
+    """Получает последнее сообщение Маи в чате для защиты от повторов."""
+    try:
+        history = get_recent_history(chat_id, 5)
+        for msg in reversed(history):
+            if msg["role"] == "Mai":
+                return msg["content"]
+    except Exception:
+        pass
+    return None
 
 @client.on(events.NewMessage)
 async def handler(event: events.NewMessage.Event) -> None:
@@ -142,6 +183,7 @@ async def handler(event: events.NewMessage.Event) -> None:
                 pass
             return
 
+        # ─── Основной ответ ───────────────────────────────────────────────
     await asyncio.to_thread(update_chat, str(chat_id), username, user_text, user_id=user_id)
 
     memory_text = await asyncio.to_thread(format_memory_for_prompt, str(chat_id), user_id)
@@ -150,12 +192,22 @@ async def handler(event: events.NewMessage.Event) -> None:
         format_global_memory_for_prompt, user_id, is_creator
     )
     history = await asyncio.to_thread(get_recent_history, str(chat_id), 20)
+    
+    # ⬇️ НОВОЕ: Контекстные подсказки + последнее сообщение Маи
+    context_hints = _get_context_hints(user_text, user_id)
+    last_mai_msg = await asyncio.to_thread(_get_last_mai_message, str(chat_id))
+    
     context = await asyncio.to_thread(
         build_context, history[:-1], memory_text, global_memory_text
     )
+    
+    # Вставляем подсказки перед историей
+    if context_hints:
+        context = context_hints + "\n\n" + context
 
     async with client.action(chat_id, "typing"):
-        reply = await asyncio.to_thread(ask_llama, context, user_text)
+        # ⬇️ Передаём last_mai_message для детекции повторов
+        reply = await asyncio.to_thread(ask_llama, context, user_text, last_mai_msg)
         logger.info("[Mai]: %s", reply)
         await client.send_message(chat_id, reply, reply_to=event.id)
         await asyncio.to_thread(update_chat, str(chat_id), "Mai", reply, user_id=user_id)
