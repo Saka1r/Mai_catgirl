@@ -192,14 +192,12 @@ async def handler(event: events.NewMessage.Event) -> None:
         format_global_memory_for_prompt, user_id, is_creator
     )
     history = await asyncio.to_thread(get_recent_history, str(chat_id), 20)
-    
+    context = await asyncio.to_thread(build_context, history, memory_text) 
+
     # ⬇️ НОВОЕ: Контекстные подсказки + последнее сообщение Маи
     context_hints = _get_context_hints(user_text, user_id)
     last_mai_msg = await asyncio.to_thread(_get_last_mai_message, str(chat_id))
     
-    context = await asyncio.to_thread(
-        build_context, history[:-1], memory_text, global_memory_text
-    )
     
     # Вставляем подсказки перед историей
     if context_hints:
