@@ -5,8 +5,8 @@ import starlight from '@astrojs/starlight';
 
 export default defineConfig({
   site: 'https://saka1r.github.io',
-  base: '/',
- // base: process.env.GITHUB_ACTIONS ? '/Mai_catgirl' : '/',
+  //base: '/',
+  base: process.env.GITHUB_ACTIONS ? '/Mai_catgirl' : '/',
   integrations: [
     starlight({
       title: 'Mai Userbot',
