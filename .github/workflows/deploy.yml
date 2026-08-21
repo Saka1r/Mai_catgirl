@@ -35,12 +35,27 @@ jobs:
         run: npm ci
         working-directory: docs
 
+      - name: Debug environment
+        run: |
+          echo "GITHUB_ACTIONS=$GITHUB_ACTIONS"
+          echo "CI=$CI"
+          echo "NODE_ENV=$NODE_ENV"
+          echo "BASE will be: $(node -e 'console.log(process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true" ? "/Mai_catgirl" : "/")')"
+        working-directory: docs
+
       - name: Build site
         run: npm run build
         working-directory: docs
         env:
           GITHUB_ACTIONS: 'true'
           CI: 'true'
+
+      - name: Show built files
+        run: |
+          ls -la dist/
+          echo "---"
+          grep -o 'href="[^"]*install[^"]*"' dist/index.html || echo "install link not found"
+        working-directory: docs
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
