@@ -5,8 +5,8 @@ import starlight from '@astrojs/starlight';
 
 export default defineConfig({
   site: 'https://saka1r.github.io',
-  //base: '/',
-  base: process.env.GITHUB_ACTIONS ? '/Mai_catgirl' : '/',
+  base: '/',
+  //base: process.env.GITHUB_ACTIONS ? '/Mai_catgirl' : '/',
   integrations: [
     starlight({
       title: 'Mai Userbot',
@@ -23,15 +23,15 @@ export default defineConfig({
         {
           label: 'Начало',
           items: [
-            { label: 'Главная', link: '/' },
-            { label: 'Установка', link: '/install/' },
+            { label: 'Главная', link: '/Mai_catgirl/' },
+            { label: 'Установка', link: '/Mai_catgirl/install/' },
           ],
         },
         {
           label: 'Гайд',
           items: [
-            { label: 'Возможности', link: '/features/' },
-            { label: 'Конфигурация', link: '/config/' },
+            { label: 'Возможности', link: '/Mai_catgirl/features/' },
+            { label: 'Конфигурация', link: '/Mai_catgirl/config/' },
           ],
         },
       ],
