@@ -2,23 +2,11 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
-// ВРЕМЕННАЯ ДИАГНОСТИКА
-console.log('🔍 ENV CHECK:', {
-  GITHUB_ACTIONS: process.env.GITHUB_ACTIONS,
-  CI: process.env.CI,
-  NODE_ENV: process.env.NODE_ENV,
-});
-
-const isProduction = process.env.GITHUB_ACTIONS === 'true' || process.env.CI === 'true';
-const base = isProduction ? '/Mai_catgirl' : '/';
-
-console.log('🎯 Using base:', base);
-
 
 export default defineConfig({
   site: 'https://saka1r.github.io',
-  base: process.env.GITHUB_ACTIONS ? '/Mai_catgirl' : '/',
-  // base: '/Mai_catgirl',
+  base: '/',
+ // base: process.env.GITHUB_ACTIONS ? '/Mai_catgirl' : '/',
   integrations: [
     starlight({
       title: 'Mai Userbot',
