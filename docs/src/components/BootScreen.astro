@@ -1,0 +1,78 @@
+---
+// Компонент-заставка в стиле BIOS 1995 года
+---
+<div id="boot-screen" class="boot">
+  <pre id="boot-text"></pre>
+  <span class="cursor">█</span>
+</div>
+
+<style>
+  .boot {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: #11111b;
+    color: #f5c2e7;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 2.5rem;
+    font-size: 1.05rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: fadeOut 0.5s ease-out 5s forwards;
+  }
+  .boot pre {
+    white-space: pre-wrap;
+    margin: 0;
+  }
+  .boot .cursor {
+    animation: blink 1s steps(1) infinite;
+  }
+  /* CRT-сканлайны на самой заставке */
+  .boot::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      to bottom,
+      transparent 0 3px,
+      rgb(0 0 0 / 0.35) 3px 4px
+    );
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+  @keyframes fadeOut {
+    to {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+  }
+</style>
+
+<script>
+  // Показываем заставку только один раз за сессию
+  const shown = sessionStorage.getItem('mai-booted');
+  if (shown) {
+    document.getElementById('boot-screen')?.remove();
+  } else {
+    sessionStorage.setItem('mai-booted', '1');
+    
+    const lines = [
+      'MAI BIOS v9.5 — (C) 1995 NEKO CORP.',
+      'Checking memory... 640K OK',
+      'Loading catgirl.sys .......... OK',
+      'Mounting /dev/memories ....... OK',
+      'Starting LLM daemon .......... OK',
+      'にゃ〜 boot complete. welcome, master ♥',
+    ];
+    const el = document.getElementById('boot-text');
+    let i = 0;
+    const t = setInterval(() => {
+      if (el) el.textContent += lines[i] + '\n';
+      if (++i === lines.length) clearInterval(t);
+    }, 450);
+  }
+</script>

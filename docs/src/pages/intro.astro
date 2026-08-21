@@ -1,0 +1,42 @@
+---
+const base = import.meta.env.BASE_URL;
+---
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>MAI OS v9.5 — booting…</title>
+  <style>
+    body { background:#11111b; color:#f5c2e7; font-family:monospace;
+           padding:2.5rem; font-size:1.05rem; }
+    body::after { content:''; position:fixed; inset:0; pointer-events:none;
+           background:repeating-linear-gradient(to bottom, transparent 0 3px, rgb(0 0 0/.35) 3px 4px); }
+    pre { white-space:pre-wrap; }
+    .cursor { animation: blink 1s steps(1) infinite; }
+    @keyframes blink { 50% { opacity:0; } }
+  </style>
+</head>
+<body>
+  <pre id="boot"></pre>
+  <span class="cursor">█</span>
+  <script>
+    const lines = [
+      'MAI BIOS v9.5 — (C) 1995 NEKO CORP.',
+      'Checking memory... 640K OK',
+      'Loading catgirl.sys .......... OK',
+      'Mounting /dev/memories ....... OK',
+      'Starting LLM daemon .......... OK',
+      'にゃ〜 boot complete. welcome, master ♥',
+    ];
+    const el = document.getElementById('boot')!;
+    let i = 0;
+    const t = setInterval(() => {
+      el.textContent += lines[i] + '\n';
+      if (++i === lines.length) {
+        clearInterval(t);
+        setTimeout(() => { location.href = base; }, 1600);
+      }
+    }, 450);
+  </script>
+</body>
+</html>

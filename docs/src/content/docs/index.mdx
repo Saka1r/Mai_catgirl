@@ -1,0 +1,45 @@
+---
+title: 'Mai Userbot'
+description: 'Ленивая кошечка-собеседница в Telegram на локальной LLM'
+template: splash
+hero:
+  title: 'まい — Mai Userbot'
+  tagline: 'Ленивая кошечка-собеседница в Telegram. Локальная LLM, долгосрочная память, дневник мыслей и сон по расписанию. Ня. 🐾'
+  actions:
+    - text: '🚀 Быстрый старт'
+      link: /install/
+      variant: primary
+    - text: '✨ Возможности'
+      link: /features/
+      variant: minimal
+    - text: 'GitHub'
+      link: https://github.com/Saka1r/Mai_catgirl
+      variant: minimal
+---
+
+
+import BootScreen from '../../components/BootScreen.astro';
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+<BootScreen />
+
+## Что внутри коробки
+
+<CardGrid>
+  <Card title="💬 Живое общение">Отвечает в ЛС и группах через локальную LLM (llama.cpp, Ollama и др.).</Card>
+  <Card title="🧠 Долгосрочная память">Помнит чаты, пользователей и глобальные факты между сессиями.</Card>
+  <Card title="😴 Симуляция сна">Ночью Mai «спит» и не читает сообщения — как настоящая кошка.</Card>
+  <Card title="🛡 Модерация">LLM-оценка плюс keyword-фильтр против токсичных сообщений.</Card>
+  <Card title="📝 Дневник">Ведёт дневник мыслей и эмоций.</Card>
+  <Card title="🚀 Проактивность">Пишет первая, когда ей скучно.</Card>
+</CardGrid>
+
+## Запуск за 60 секунд
+
+```bash
+git clone https://github.com/Saka1r/Mai_catgirl && cd Mai_catgirl
+python -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env   # заполнить API_ID / API_HASH / CREATOR_USER_ID
+python main.py
+```

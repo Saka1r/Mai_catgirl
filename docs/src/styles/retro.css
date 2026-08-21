@@ -1,0 +1,67 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=DotGothic16&family=JetBrains+Mono:wght@400;700&display=swap');
+
+:root {
+  /* Catppuccin Mocha */
+  --ctp-pink:#f5c2e7; --ctp-mauve:#cba6f7; --ctp-red:#f38ba8;
+  --ctp-sky:#89dceb; --ctp-blue:#89b4fa; --ctp-lavender:#b4befe;
+  --ctp-text:#cdd6f4; --ctp-subtext1:#bac2de; --ctp-overlay0:#6c7086;
+  --ctp-surface1:#45475a; --ctp-surface0:#313244;
+  --ctp-base:#1e1e2e; --ctp-mantle:#181825; --ctp-crust:#11111b;
+
+  /* Starlight */
+  --sl-color-bg: var(--ctp-base);
+  --sl-color-bg-nav: var(--ctp-mantle);
+  --sl-color-bg-sidebar: var(--ctp-mantle);
+  --sl-color-bg-inline-code: var(--ctp-surface0);
+  --sl-color-hairline: var(--ctp-surface1);
+  --sl-color-text: var(--ctp-text);
+  --sl-color-text-accent: var(--ctp-sky);
+  --sl-color-accent: var(--ctp-pink);
+  --sl-color-accent-high: var(--ctp-mauve);
+  --sl-font: 'JetBrains Mono', monospace;
+  --sl-font-mono: 'JetBrains Mono', monospace;
+}
+
+/* ── CRT-сканлайны поверх всего ── */
+body::after {
+  content:''; position:fixed; inset:0; z-index:2147483647; pointer-events:none;
+  background: repeating-linear-gradient(to bottom,
+    transparent 0 3px, rgb(0 0 0 / .25) 3px 4px);
+}
+
+/* ── Лёгкое «дыхание» кинескопа ── */
+@keyframes crt { 0%,91%,94%,100%{opacity:1} 92%{opacity:.96} 93%{opacity:.99} }
+body { animation: crt 7s infinite; }
+
+/* ── Пиксельные заголовки + хроматическая аберрация VHS ── */
+h1, h2, h3 {
+  font-family:'Press Start 2P','DotGothic16',monospace !important;
+  text-shadow: 2px 0 var(--ctp-red), -2px 0 var(--ctp-sky);
+  letter-spacing:.02em;
+  line-height:1.5;
+}
+
+/* Японские акценты: <p class="jp">にゃーん</p> */
+.jp { font-family:'DotGothic16',monospace; color:var(--ctp-pink); }
+
+/* ── Пиксельные рамки у карточек и врезок ── */
+.card, .starlight-aside {
+  border: 3px solid var(--ctp-mauve) !important;
+  border-radius: 0 !important;
+  box-shadow: 5px 5px 0 var(--ctp-crust), 5px 5px 0 3px var(--ctp-pink);
+}
+
+/* ── Таблицы как в старых мануалах ── */
+table { border-collapse: collapse; }
+th { background: var(--ctp-surface0); color: var(--ctp-pink); }
+th, td { border: 2px solid var(--ctp-surface1) !important; }
+
+/* ── Кнопки без скруглений ── */
+.sl-link-button, .button { border-radius: 0 !important; }
+
+/* ── Мелочи ── */
+::selection { background: var(--ctp-pink); color: var(--ctp-crust); }
+::-webkit-scrollbar { width:10px; height:10px; }
+::-webkit-scrollbar-track { background: var(--ctp-mantle); }
+::-webkit-scrollbar-thumb { background: var(--ctp-mauve); border:2px solid var(--ctp-mantle); }
+.pixel { image-rendering: pixelated; }
