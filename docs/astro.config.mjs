@@ -4,7 +4,7 @@ import starlight from '@astrojs/starlight';
 
 export default defineConfig({
   site: 'https://saka1r.github.io',
-  base: import.meta.env.DEV ? '/' : '/Mai_catgirl',
+  base: process.env.GITHUB_ACTIONS ? '/Mai_catgirl' : '/',
   // base: '/Mai_catgirl',
   integrations: [
     starlight({
