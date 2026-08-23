@@ -146,6 +146,44 @@ def append_thought(
 
 # ─── Глобальная память ────────────────────────────────────────────────────────
 
+def update_user_global_after_analysis(
+    user_id: int,
+    emotion: str | None = None,
+    detailed_summary: str | None = None,
+    key_facts: list[str] | None = None,
+) -> None:
+    """Обновляет глобальную память после анализа диалога (из process_memory)."""
+    memory = load_global_memory()
+    users = memory.setdefault("users_index", {})
+    user_id_str = str(user_id)
+
+    if user_id_str not in users:
+        return
+
+    user = users[user_id_str]
+    creator_only = user.setdefault("creator_only", {})
+
+    # Обновляем эмоцию Маи
+    if emotion:
+        emotions = creator_only.setdefault("emotional_history", [])
+        emotions.append(emotion)
+        creator_only["emotional_history"] = emotions[-10:]
+
+    # Обновляем детальное описание
+    if detailed_summary:
+        creator_only["detailed_summary"] = detailed_summary
+
+    # Обновляем ключевые факты
+    if key_facts:
+        facts = creator_only.setdefault("key_facts", [])
+        for fact in key_facts:
+            fact = fact.strip()
+            if fact and fact not in facts:
+                facts.append(fact)
+        creator_only["key_facts"] = facts[-10:]
+
+    save_global_memory(memory)
+
 def load_global_memory() -> dict[str, Any]:
     return load_json(GLOBAL_MEMORY_FILE, GLOBAL_MEMORY_SCHEMA)
 
@@ -184,7 +222,7 @@ def update_user_interaction(
     username: str,
     chat_id: int,
     message_preview: str,
-    emotion: str = "нейтральная",
+    emotion: str | None = None,
 ) -> None:
     """Обновляет глобальную память при каждом взаимодействии."""
     memory = load_global_memory()
@@ -207,7 +245,7 @@ def update_user_interaction(
             "creator_only": {
                 "detailed_summary": f"Новый пользователь {username} написал в чат {chat_id}.",
                 "key_facts": [],
-                "emotional_history": [emotion],
+                "emotional_history": [emotion] if emotion else [],
                 "last_conversation_preview": message_preview[:100],
                 "chat_ids": [str(chat_id)],
             },
@@ -222,10 +260,6 @@ def update_user_interaction(
             chat_ids.append(str(chat_id))
             user["total_chats"] += 1
 
-        emotions = user["creator_only"].setdefault("emotional_history", [])
-        emotions.append(emotion)
-        user["creator_only"]["emotional_history"] = emotions[-10:]
-
         user["creator_only"]["last_conversation_preview"] = message_preview[:100]
         user["public_summary"] = (
             f"Этот человек писал мне {user['total_messages']} раз. "
@@ -236,7 +270,17 @@ def update_user_interaction(
     stats = memory.setdefault("global_stats", {})
     stats["total_unique_users"] = len(users)
     stats["total_messages_processed"] = stats.get("total_messages_processed", 0) + 1
-
+    
+    # Самый активный пользователь
+    if users:
+        most_active = max(users.values(), key=lambda u: u["total_messages"])
+        stats["most_active_user"] = most_active["user_id"]
+    
+    # Среднее число сообщений
+    if users:
+        stats["average_messages_per_user"] = round(
+            stats["total_messages_processed"] / len(users), 1
+        )
     save_global_memory(memory)
 
 

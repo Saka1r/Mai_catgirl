@@ -12,6 +12,7 @@ from mai.prompts import MEMORY_EXTRACT_PROMPT
 from mai.storage import (
     load_chat, save_chat, load_user, save_user,
     add_user_fact, append_thought, load_global_memory,
+    update_user_global_after_analysis,
 )
 
 logger = logging.getLogger(__name__)
@@ -20,28 +21,33 @@ logger = logging.getLogger(__name__)
 def parse_memory_text(text: str) -> dict[str, str]:
     """Парсит ответ LLM-анализатора в словарь."""
     data: dict[str, str] = {}
+    
     for line in text.strip().split("\n"):
         line = line.strip()
         if not line or ":" not in line:
             continue
+        
         key_part, val_part = line.split(":", 1)
         key = key_part.strip().lower()
         val = val_part.strip()
+        
         if not val or val.upper() in ("НЕТ", "NONE", ""):
             continue
 
+        # Порядок важен: более специфичные ключи проверяем первыми
         if any(k in key for k in ("итог", "сумма", "summary", "выжимка")):
             data["SUMMARY"] = val
         elif any(k in key for k in ("факт о пользователе", "user_fact")):
             data["USER_FACT"] = val
         elif any(k in key for k in ("факт о ситуации", "chat_fact")):
             data["CHAT_FACT"] = val
-        elif any(k in key for k in ("настроение", "mood")):
-            data["USER_MOOD"] = val
-        elif any(k in key for k in ("мысль", "thought")):
+        elif any(k in key for k in ("мысль маи", "mai_thought", "мысль", "thought")):
             data["THOUGHT"] = val
-        elif any(k in key for k in ("эмоция", "emotion")):
+        elif any(k in key for k in ("настроение", "user_mood", "mood")):
+            data["USER_MOOD"] = val
+        elif any(k in key for k in ("эмоция маи", "mai_emotion", "эмоция", "emotion")):
             data["EMOTION"] = val
+    
     return data
 
 
@@ -62,7 +68,7 @@ def process_memory(chat_id: str | int, user_id: Optional[int]) -> None:
 
         raw = query_llm_raw(
             prompt,
-            n_predict=80,
+            n_predict=120,  # ← Увеличили с 80, чтобы влезло MAI_THOUGHT
             temperature=0.2,
             stop=["\n\n", "User:", "Mai:", "Пользователь:", "<output>", "</dialogue>"],
         )
@@ -71,15 +77,18 @@ def process_memory(chat_id: str | int, user_id: Optional[int]) -> None:
         mem["last_processed_index"] = len(messages)
 
         if data:
+            # ─── Чат-память ─────────────────────────────────────────────
             if data.get("SUMMARY"):
                 mem["summary"] = data["SUMMARY"]
             if data.get("CHAT_FACT"):
                 mem.setdefault("facts", []).append(data["CHAT_FACT"])
                 mem["facts"] = mem["facts"][-20:]
 
+            # ─── User-файл ──────────────────────────────────────────────
             if user_id:
                 user = load_user(user_id)
                 user["user_id"] = str(user_id)
+                
                 if data.get("USER_FACT"):
                     add_user_fact(user_id, data["USER_FACT"])
                 if data.get("SUMMARY"):
@@ -94,6 +103,7 @@ def process_memory(chat_id: str | int, user_id: Optional[int]) -> None:
                 user["relationship"] = max(-10, min(10, user.get("relationship", 0) + delta))
                 save_user(user_id, user)
 
+                # Мысль Маи → дневник
                 if data.get("THOUGHT"):
                     append_thought(
                         user_id,
@@ -102,12 +112,19 @@ def process_memory(chat_id: str | int, user_id: Optional[int]) -> None:
                         chat_id,
                     )
 
+                # ─── НОВОЕ: Синхронизация с глобальной памятью ──────────
+                update_user_global_after_analysis(
+                    user_id=user_id,
+                    emotion=data.get("EMOTION"),
+                    detailed_summary=data.get("SUMMARY"),
+                    key_facts=[data["USER_FACT"]] if data.get("USER_FACT") else None,
+                )
+
         chat["memory"] = mem
         save_chat(chat_id, chat)
 
     except Exception as e:
         logger.exception("Memory processing error: %s", e)
-
 
 def format_memory_for_prompt(chat_id: str | int, user_id: Optional[int] = None) -> str:
     """Форматирует память чата и пользователя для вставки в промпт."""

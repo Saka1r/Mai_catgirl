@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-import asyncio          # <-- НУЖНО для asyncio.to_thread()
-import logging
-import threading        # <-- НУЖНО для threading.Thread
+import os
+import asyncio          
+import logging  
 import re
+import datetime
 
 from telethon import events
+from dotenv import load_dotenv
 
 from typing import Optional
 
@@ -49,6 +51,8 @@ _CLAIMS_CREATOR_PATTERN = re.compile(
     re.IGNORECASE
 )
 
+load_dotenv()
+SLEEP_TIME = os.getenv("SLEEP_TIME")
 
 def _get_context_hints(user_text: str, user_id: int) -> str:
     """Генерирует системные подсказки для LLM на основе сообщения."""
@@ -84,12 +88,33 @@ def _get_last_mai_message(chat_id: str) -> Optional[str]:
 
 @client.on(events.NewMessage)
 async def handler(event: events.NewMessage.Event) -> None:
-    # Защита: если state.me ещё не инициализирован
+
     if state.me is None:
         return
 
     if event.sender_id == state.me.id:
         return
+
+
+    start_time_str, end_time_str = SLEEP_TIME.split('-')
+
+    # Преобразование времени начала и конца в объекты datetime.time
+    start_hour, start_minute = map(int, start_time_str.split(':'))
+    end_hour, end_minute = map(int, end_time_str.split(':'))
+
+    start_time = datetime.time(start_hour, start_minute)
+    end_time = datetime.time(end_hour, end_minute)
+
+    now = datetime.datetime.now()
+    current_time = now.time()
+
+    # Проверяем, находится ли текущее время в диапазоне sleep_time
+    if start_time <= end_time:
+        if start_time <= current_time < end_time:
+            return
+    else:
+        if start_time <= current_time or current_time < end_time:
+            return
 
     sender = await event.get_sender()
     chat_id = event.chat_id
@@ -100,7 +125,6 @@ async def handler(event: events.NewMessage.Event) -> None:
     await asyncio.to_thread(
         update_user_interaction,
         user_id, username, chat_id, user_text[:100],
-        emotion="нейтральная",
     )
 
     if not user_text:
