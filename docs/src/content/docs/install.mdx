@@ -29,3 +29,26 @@ pip install -r requirements.txt
 </TabItem>
 </Tabs>
 
+## Шаг 2. Конфигурация
+
+```bash
+cp .env.example .env
+# Отредактируй .env: API_ID, API_HASH, CREATOR_USER_ID
+```
+
+## Шаг 3. Запуск LLM
+
+```bash
+llama-server -m qwen2.5-14b-instruct-q4_k_m.gguf -c 8192 -ngl 99 --port 8080
+# or
+llama-server -m qwen2.5-14b-instruct-q4_k_m.gguf -c 16384 -ngl 99 --port 8080
+# or llama3-8B | I do not recommend
+```
+
+## Шаг 4. Запуск
+
+```bash
+python main_telegram.py
+#or
+python main_cli.py
+```

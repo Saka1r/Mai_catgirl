@@ -40,7 +40,9 @@ llama-server -m qwen2.5-14b-instruct-q4_k_m.gguf -c 16384 -ngl 99 --port 8080
 
 ### 4. Запуск
 ```bash
-python main.py
+python main_telegram.py
+# or 
+python main_cli.py
 ```
 
 ### 📄 Лицензия MIT
