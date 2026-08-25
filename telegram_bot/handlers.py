@@ -13,7 +13,6 @@ from dotenv import load_dotenv
 
 from typing import Optional
 
-from mai.client import client, state
 from mai.config import CREATOR_USER_ID
 from mai.llm import ask_llama
 from mai.memory import (
@@ -35,7 +34,9 @@ from mai.storage import (
     update_chat,
     update_user_interaction,
 )
-from mai.telegram_utils import ban_user, simulate_reading
+
+from telegram_bot.client import client, state
+from telegram_bot.telegram_utils import ban_user, simulate_reading
 
 logger = logging.getLogger(__name__)
 

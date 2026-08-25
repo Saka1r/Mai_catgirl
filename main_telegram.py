@@ -1,11 +1,9 @@
-"""Точка входа Mai Userbot."""
-
+"""Точка входа для Telegram-режима."""
 from __future__ import annotations
 
 import sys
 import asyncio
 
-# ─── WINDOWS FIX ──────────────────────────────────────────────────────────────
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
@@ -13,10 +11,8 @@ import logging
 
 from mai.client import client, state
 from mai.config import ensure_dirs
-from mai.proactive import proactive_boredom_loop
-
-# ─── КРИТИЧЕСКИ ВАЖНО: регистрируем обработчики ───────────────────────────────
-import mai.handlers  # <-- ЭТА СТРОКА АКТИВИРУЕТ @client.on(events.NewMessage)
+from telegram_bot.proactive import proactive_boredom_loop
+import telegram_bot.handlers  #регистрирует event handlers
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,21 +20,16 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
-logger = logging.getLogger("mai")
-
-logging.getLogger("telethon").setLevel(logging.INFO)  # <-- INFO, не WARNING
+logger = logging.getLogger("mai.telegram")
+logging.getLogger("telethon").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
 async def main() -> None:
     ensure_dirs()
-
     state.me = await client.get_me()
-    logger.info("Зарегистрировано обработчиков: %d", len(client.list_event_handlers()))
     logger.info("Userbot запущен 🐱 (@%s)", state.me.username)
-
     asyncio.create_task(proactive_boredom_loop())
-
     logger.info("[USERBOT] Ожидание сообщений...")
     await client.run_until_disconnected()
 
