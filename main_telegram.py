@@ -9,8 +9,8 @@ if sys.platform == "win32":
 
 import logging
 
-from mai.client import client, state
 from mai.config import ensure_dirs
+from telegram_bot.client import client, state
 from telegram_bot.proactive import proactive_boredom_loop
 import telegram_bot.handlers  #регистрирует event handlers
 

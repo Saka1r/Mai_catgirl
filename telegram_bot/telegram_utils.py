@@ -12,7 +12,7 @@ from telethon.tl.functions.channels import EditBannedRequest
 from telethon.tl.functions.contacts import BlockRequest
 from telethon.tl.types import ChatBannedRights
 
-from mai.client import client
+from telegram_bot.client import client
 from mai.config import SLEEP_START_HOUR, SLEEP_END_HOUR
 
 logger = logging.getLogger(__name__)

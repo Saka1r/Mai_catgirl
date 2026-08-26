@@ -8,7 +8,7 @@ import os
 import random
 from datetime import datetime
 
-from mai.client import client
+from telegram_bot.client import client
 from mai.config import (
     CHATS_DIR,
     PROACTIVE_INTERVAL_SEC,
