@@ -198,6 +198,9 @@ async def handler(event: events.NewMessage.Event) -> None:
     logger.info("[%s]: %s", username, user_text)
 
     if user_id != CREATOR_USER_ID:
+
+        ban_list = get_ban_list()
+
         ban_decision = await asyncio.to_thread(check_ban, user_text)
         if ban_decision == "БАН":
             logger.warning("[BAN] %s (%s) за: '%s'", username, user_id, user_text)

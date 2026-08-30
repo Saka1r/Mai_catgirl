@@ -25,6 +25,10 @@ USERS_DIR: str = os.getenv("USERS_DIR", str(BASE_DIR / "data" / "users"))
 GLOBAL_MEMORY_FILE: str = os.getenv(
     "GLOBAL_MEMORY_FILE", str(BASE_DIR / "data" / "memory" / "global.json")
 )
+GLOBAL_MEMORY_BAN_LIST: str = os.getenv(
+    "GLOBAL_MEMORY_FILE", str(BASE_DIR / "data" / "memory" / "ban_list.json")
+)
+
 
 # ─── LLM ─────────────────────────────────────────────────────────────────────
 LLAMA_URL: str = os.getenv("LLAMA_URL", "http://localhost:8080/completion")

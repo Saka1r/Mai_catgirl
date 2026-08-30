@@ -10,7 +10,7 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Any, Optional
 
-from mai.config import CHATS_DIR, USERS_DIR, GLOBAL_MEMORY_FILE
+from mai.config import CHATS_DIR, USERS_DIR, GLOBAL_MEMORY_FILE, GLOBAL_MEMORY_BAN_LIST
 from mai.models import CHAT_SCHEMA, USER_SCHEMA, GLOBAL_MEMORY_SCHEMA
 
 logger = logging.getLogger(__name__)
@@ -293,3 +293,16 @@ def can_access_user_details(requester_id: int, target_user_id: int) -> str | boo
     if requester_id == target_user_id:
         return "public_only"
     return "fact_only"
+
+
+
+def get_ban_list() -> dict[str, Any]:
+    '''Возращает список забанненых пользователей'''
+
+    json_raw = load_json("{GLOBAL_MEMORY_BAN_LIST}")
+
+    if not json_raw:
+        return {}
+    else:
+        return {"users": json_raw}
+
