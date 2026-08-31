@@ -294,15 +294,25 @@ def can_access_user_details(requester_id: int, target_user_id: int) -> str | boo
         return "public_only"
     return "fact_only"
 
+# ─── Бан лист ─────────────────────────────────────────────────────────────────
 
+def create_ban_list() -> None:
+    """Создает пустой словарь и сохраняет его в файл {GLOBAL_MEMORY_BAN_LIST}."""
+    ban_list = {}
+    save_json("{GLOBAL_MEMORY_BAN_LIST}", ban_list)
+
+def add_ban_list(user_id: str) -> None:
+    """Добавляет пользователя в список забанненных пользователей."""
+    ban_list = load_json("{GLOBAL_MEMORY_BAN_LIST}")
+    
+    if user_id not in ban_list["users"]:
+        ban_list["users"].append(user_id)
+        save_json("{GLOBAL_MEMORY_BAN_LIST}", ban_list)
 
 def get_ban_list() -> dict[str, Any]:
-    '''Возращает список забанненых пользователей'''
-
-    json_raw = load_json("{GLOBAL_MEMORY_BAN_LIST}")
-
-    if not json_raw:
+    """Возвращает список забанненных пользователей."""
+    ban_list = load_json("{GLOBAL_MEMORY_BAN_LIST}")
+    if not ban_list:
         return {}
-    else:
-        return {"users": json_raw}
+    return {"users": ban_list["users"]}
 
