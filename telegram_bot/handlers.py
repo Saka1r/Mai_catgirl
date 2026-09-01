@@ -33,6 +33,8 @@ from mai.storage import (
     save_global_memory,
     update_chat,
     update_user_interaction,
+    get_ban_list,
+    add_ban_list
 )
 
 from telegram_bot.client import client, state
@@ -200,11 +202,16 @@ async def handler(event: events.NewMessage.Event) -> None:
     if user_id != CREATOR_USER_ID:
 
         ban_list = get_ban_list()
+        
+        for i in ban_list:
+            if user_id == i:
+                return
 
         ban_decision = await asyncio.to_thread(check_ban, user_text)
         if ban_decision == "БАН":
             logger.warning("[BAN] %s (%s) за: '%s'", username, user_id, user_text)
             await ban_user(chat_id, user_id, is_private=is_private)
+            add_ban_list(user_id)
             try:
                 await event.delete()
             except Exception:
