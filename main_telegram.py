@@ -10,9 +10,10 @@ if sys.platform == "win32":
 import logging
 
 from mai.config import ensure_dirs
+from mai.consolidator import consolidator_loop
 from telegram_bot.client import client, state
 from telegram_bot.proactive import proactive_boredom_loop
-import telegram_bot.handlers  #регистрирует event handlers
+import telegram_bot.handlers  # noqa: F401
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,20 +21,25 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
     handlers=[logging.StreamHandler(sys.stdout)],
 )
-logger = logging.getLogger("mai.telegram")
+logger = logging.getLogger("mai")
 logging.getLogger("telethon").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
+logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
 
 
-async def main() -> None:
+async def main():
     ensure_dirs()
     state.me = await client.get_me()
-    logger.info("Userbot запущен 🐱 (@%s)", state.me.username)
+    logger.info("🐱 Mai запущена (@%s)", state.me.username)
     asyncio.create_task(proactive_boredom_loop())
+    asyncio.create_task(consolidator_loop())
     logger.info("[USERBOT] Ожидание сообщений...")
     await client.run_until_disconnected()
 
 
 if __name__ == "__main__":
-    client.start()
-    client.loop.run_until_complete(main())
+    try:
+        client.start()
+        client.loop.run_until_complete(main())
+    except KeyboardInterrupt:
+        logger.info("Остановка")

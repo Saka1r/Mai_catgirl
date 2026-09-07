@@ -1,5 +1,4 @@
 """Работа с файловым хранилищем: чаты, пользователи, глобальная память."""
-
 from __future__ import annotations
 
 import json
@@ -10,16 +9,15 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Any, Optional
 
-from mai.config import CHATS_DIR, USERS_DIR, GLOBAL_MEMORY_FILE, GLOBAL_MEMORY_BAN_LIST
+from mai.config import CHATS_DIR, USERS_DIR, GLOBAL_MEMORY_FILE
 from mai.models import CHAT_SCHEMA, USER_SCHEMA, GLOBAL_MEMORY_SCHEMA
 
 logger = logging.getLogger(__name__)
 
 
-# ─── Базовые операции с JSON ─────────────────────────────────────────────────
+# === Базовые JSON операции ===
 
 def load_json(path: str, default: dict) -> dict[str, Any]:
-    """Загружает JSON из файла. Возвращает копию default, если файла нет."""
     if not os.path.exists(path):
         return deepcopy(default)
     try:
@@ -31,18 +29,17 @@ def load_json(path: str, default: dict) -> dict[str, Any]:
 
 
 def save_json(path: str, data: dict[str, Any]) -> None:
-    """Сохраняет dict в JSON-файл, создавая директории при необходимости."""
     folder = os.path.dirname(path)
     if folder:
         os.makedirs(folder, exist_ok=True)
     try:
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False)
     except IOError as e:
         logger.error("Ошибка записи %s: %s", path, e)
 
 
-# ─── Чаты ─────────────────────────────────────────────────────────────────────
+# === Чаты ===
 
 def chat_path(chat_id: str | int) -> str:
     return f"{CHATS_DIR}/{chat_id}.json"
@@ -77,15 +74,13 @@ def update_chat(
 ) -> None:
     create_chat(chat_id)
     chat_data = load_chat(chat_id)
-    chat_data["messages"].append(
-        {
-            "id": len(chat_data["messages"]) + 1,
-            "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "role": role,
-            "user_id": str(user_id) if user_id is not None else None,
-            "content": message,
-        }
-    )
+    chat_data["messages"].append({
+        "id": len(chat_data["messages"]) + 1,
+        "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "role": role,
+        "user_id": str(user_id) if user_id is not None else None,
+        "content": message,
+    })
     chat_data["short_term"] = chat_data["messages"][-20:]
     save_chat(chat_id, chat_data)
 
@@ -100,7 +95,19 @@ def clear_chat(chat_id: str | int) -> None:
         os.remove(path)
 
 
-# ─── Пользователи ─────────────────────────────────────────────────────────────
+def get_last_mai_message(chat_id: str | int) -> Optional[str]:
+    """Последнее сообщение Маи в чате (для детекции повторов)."""
+    try:
+        history = get_recent_history(chat_id, 5)
+        for msg in reversed(history):
+            if msg["role"] == "Mai":
+                return msg["content"]
+    except Exception:
+        pass
+    return None
+
+
+# === Пользователи ===
 
 def user_path(user_id: str | int) -> str:
     return f"{USERS_DIR}/{user_id}.json"
@@ -132,57 +139,17 @@ def append_thought(
     chat_id: Optional[str | int] = None,
 ) -> None:
     user = load_user(user_id)
-    user["thought_journal"].append(
-        {
-            "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "chat_id": str(chat_id),
-            "emotion": emotion,
-            "thought": thought.strip(),
-        }
-    )
+    user["thought_journal"].append({
+        "ts": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "chat_id": str(chat_id),
+        "emotion": emotion,
+        "thought": thought.strip(),
+    })
     user["thought_journal"] = user["thought_journal"][-20:]
     save_user(user_id, user)
 
 
-# ─── Глобальная память ────────────────────────────────────────────────────────
-
-def update_user_global_after_analysis(
-    user_id: int,
-    emotion: str | None = None,
-    detailed_summary: str | None = None,
-    key_facts: list[str] | None = None,
-) -> None:
-    """Обновляет глобальную память после анализа диалога (из process_memory)."""
-    memory = load_global_memory()
-    users = memory.setdefault("users_index", {})
-    user_id_str = str(user_id)
-
-    if user_id_str not in users:
-        return
-
-    user = users[user_id_str]
-    creator_only = user.setdefault("creator_only", {})
-
-    # Обновляем эмоцию Маи
-    if emotion:
-        emotions = creator_only.setdefault("emotional_history", [])
-        emotions.append(emotion)
-        creator_only["emotional_history"] = emotions[-10:]
-
-    # Обновляем детальное описание
-    if detailed_summary:
-        creator_only["detailed_summary"] = detailed_summary
-
-    # Обновляем ключевые факты
-    if key_facts:
-        facts = creator_only.setdefault("key_facts", [])
-        for fact in key_facts:
-            fact = fact.strip()
-            if fact and fact not in facts:
-                facts.append(fact)
-        creator_only["key_facts"] = facts[-10:]
-
-    save_global_memory(memory)
+# === Глобальная память ===
 
 def load_global_memory() -> dict[str, Any]:
     return load_json(GLOBAL_MEMORY_FILE, GLOBAL_MEMORY_SCHEMA)
@@ -194,13 +161,11 @@ def save_global_memory(data: dict[str, Any]) -> None:
 
 
 def has_user_written(user_id: str | int) -> bool:
-    """Быстрая проверка: писал ли этот человек Маи?"""
     memory = load_global_memory()
     return str(user_id) in memory.get("users_index", {})
 
 
 def get_user_public_summary(user_id: str | int) -> str:
-    """Публичная информация о пользователе (для всех)."""
     memory = load_global_memory()
     user = memory.get("users_index", {}).get(str(user_id))
     if not user:
@@ -209,7 +174,6 @@ def get_user_public_summary(user_id: str | int) -> str:
 
 
 def get_user_creator_details(user_id: str | int) -> Optional[dict[str, Any]]:
-    """Полная информация о пользователе (только для создателя)."""
     memory = load_global_memory()
     user = memory.get("users_index", {}).get(str(user_id))
     if not user:
@@ -222,9 +186,7 @@ def update_user_interaction(
     username: str,
     chat_id: int,
     message_preview: str,
-    emotion: str | None = None,
 ) -> None:
-    """Обновляет глобальную память при каждом взаимодействии."""
     memory = load_global_memory()
     users = memory.setdefault("users_index", {})
     user_id_str = str(user_id)
@@ -245,7 +207,7 @@ def update_user_interaction(
             "creator_only": {
                 "detailed_summary": f"Новый пользователь {username} написал в чат {chat_id}.",
                 "key_facts": [],
-                "emotional_history": [emotion] if emotion else [],
+                "emotional_history": [],
                 "last_conversation_preview": message_preview[:100],
                 "chat_ids": [str(chat_id)],
             },
@@ -254,12 +216,10 @@ def update_user_interaction(
         user = users[user_id_str]
         user["last_seen"] = now
         user["total_messages"] += 1
-
         chat_ids = user["creator_only"].setdefault("chat_ids", [])
         if str(chat_id) not in chat_ids:
             chat_ids.append(str(chat_id))
             user["total_chats"] += 1
-
         user["creator_only"]["last_conversation_preview"] = message_preview[:100]
         user["public_summary"] = (
             f"Этот человек писал мне {user['total_messages']} раз. "
@@ -270,49 +230,59 @@ def update_user_interaction(
     stats = memory.setdefault("global_stats", {})
     stats["total_unique_users"] = len(users)
     stats["total_messages_processed"] = stats.get("total_messages_processed", 0) + 1
-    
-    # Самый активный пользователь
     if users:
         most_active = max(users.values(), key=lambda u: u["total_messages"])
         stats["most_active_user"] = most_active["user_id"]
-    
-    # Среднее число сообщений
-    if users:
         stats["average_messages_per_user"] = round(
             stats["total_messages_processed"] / len(users), 1
         )
     save_global_memory(memory)
 
 
-def can_access_user_details(requester_id: int, target_user_id: int) -> str | bool:
-    """Проверка прав доступа к деталям пользователя."""
-    from mai.config import CREATOR_USER_ID
+def update_user_global_after_analysis(
+    user_id: int,
+    emotion: str | None = None,
+    detailed_summary: str | None = None,
+    key_facts: list[str] | None = None,
+) -> None:
+    memory = load_global_memory()
+    users = memory.setdefault("users_index", {})
+    user_id_str = str(user_id)
+    if user_id_str not in users:
+        return
 
-    if requester_id == CREATOR_USER_ID:
-        return True
-    if requester_id == target_user_id:
-        return "public_only"
-    return "fact_only"
+    user = users[user_id_str]
+    creator_only = user.setdefault("creator_only", {})
 
-# ─── Бан лист ─────────────────────────────────────────────────────────────────
+    if emotion:
+        emotions = creator_only.setdefault("emotional_history", [])
+        emotions.append(emotion)
+        creator_only["emotional_history"] = emotions[-10:]
 
-def create_ban_list() -> None:
-    """Создает пустой словарь и сохраняет его в файл {GLOBAL_MEMORY_BAN_LIST}."""
-    ban_list = {}
-    save_json("{GLOBAL_MEMORY_BAN_LIST}", ban_list)
+    if detailed_summary:
+        creator_only["detailed_summary"] = detailed_summary
 
-def add_ban_list(user_id: str) -> None:
-    """Добавляет пользователя в список забанненных пользователей."""
-    ban_list = load_json("{GLOBAL_MEMORY_BAN_LIST}")
-    
-    if user_id not in ban_list["users"]:
-        ban_list["users"].append(user_id)
-        save_json("{GLOBAL_MEMORY_BAN_LIST}", ban_list)
+    if key_facts:
+        facts = creator_only.setdefault("key_facts", [])
+        for fact in key_facts:
+            fact = fact.strip()
+            if fact and fact not in facts:
+                facts.append(fact)
+        creator_only["key_facts"] = facts[-10:]
 
-def get_ban_list() -> dict[str, Any]:
-    """Возвращает список забанненных пользователей."""
-    ban_list = load_json("{GLOBAL_MEMORY_BAN_LIST}")
-    if not ban_list:
-        return {}
-    return {"users": ban_list["users"]}
+    save_global_memory(memory)
 
+
+# === Ban list ===
+
+def is_banned(user_id: int) -> bool:
+    memory = load_global_memory()
+    return user_id in memory.get("ban_list", [])
+
+
+def add_to_ban_list(user_id: int) -> None:
+    memory = load_global_memory()
+    ban_list = memory.setdefault("ban_list", [])
+    if user_id not in ban_list:
+        ban_list.append(user_id)
+        save_global_memory(memory)

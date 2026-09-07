@@ -1,5 +1,4 @@
-"""Проактивный loop: Маи пишет первая, когда заскучала."""
-
+"""Проактивный loop: Маи пишет первой, когда скучно."""
 from __future__ import annotations
 
 import asyncio
@@ -8,36 +7,29 @@ import os
 import random
 from datetime import datetime
 
-from telegram_bot.client import client
 from mai.config import (
-    CHATS_DIR,
-    PROACTIVE_INTERVAL_SEC,
-    PROACTIVE_BOREDOM_HOURS,
-    PROACTIVE_CHANCE,
+    CHATS_DIR, PROACTIVE_INTERVAL_SEC,
+    PROACTIVE_BOREDOM_HOURS, PROACTIVE_CHANCE,
 )
-from mai.llm import generate_proactive
-from mai.memory import build_context
-from mai.prompts import SYSTEM_PROMPT, PROACTIVE_PROMPT
+from mai.llm import generate_response
+from mai.memory import format_global_memory_for_prompt
+from mai.prompts import PROACTIVE_PROMPT, SYSTEM_PROMPT
 from mai.storage import load_chat, update_chat
+from telegram_bot.client import client
 
 logger = logging.getLogger(__name__)
 
 
 async def proactive_boredom_loop() -> None:
-    """Фоновый цикл: периодически пишет в чаты, где давно тишина."""
-    logger.info("[PROACTIVE] Запущен фоновый поток инициативы...")
-
+    logger.info("[PROACTIVE] Запущен")
     while True:
         await asyncio.sleep(PROACTIVE_INTERVAL_SEC)
         try:
             if not os.path.exists(CHATS_DIR):
                 continue
-
-            chat_files = [f for f in os.listdir(CHATS_DIR) if f.endswith(".json")]
-            if not chat_files:
-                continue
-
-            for chat_file in chat_files:
+            for chat_file in os.listdir(CHATS_DIR):
+                if not chat_file.endswith(".json"):
+                    continue
                 chat_id_str = chat_file.replace(".json", "")
                 try:
                     chat_id = int(chat_id_str)
@@ -51,15 +43,35 @@ async def proactive_boredom_loop() -> None:
 
                 last_msg = messages[-1]
                 last_ts = datetime.strptime(last_msg["ts"], "%Y-%m-%d %H:%M:%S")
-                hours_passed = (datetime.now() - last_ts).total_seconds() / 3600
+                hours = (datetime.now() - last_ts).total_seconds() / 3600
 
-                if hours_passed > PROACTIVE_BOREDOM_HOURS and random.random() < PROACTIVE_CHANCE:
-                    logger.info("[PROACTIVE] Маи заскучала → чат %s", chat_id)
-
-                    init_prompt = PROACTIVE_PROMPT.format(system_prompt=SYSTEM_PROMPT)
-                    reply = await asyncio.to_thread(generate_proactive, init_prompt)
-
-                    if reply:
+                if hours > PROACTIVE_BOREDOM_HOURS and random.random() < PROACTIVE_CHANCE:
+                    logger.info("[PROACTIVE] чат %s", chat_id)
+                    
+                    # Получаем user_id из последнего сообщения пользователя
+                    user_id = None
+                    for msg in reversed(messages):
+                        if msg["role"] != "Mai" and msg.get("user_id"):
+                            try:
+                                user_id = int(msg["user_id"])
+                                break
+                            except (ValueError, TypeError):
+                                continue
+                    
+                    if user_id:
+                        about_user = await asyncio.to_thread(
+                            format_global_memory_for_prompt, user_id, False
+                        )
+                    else:
+                        about_user = "Ничего не помню об этом человеке."
+                    
+                    prompt = PROACTIVE_PROMPT.format(
+                        system_prompt=SYSTEM_PROMPT,
+                        username="собеседник",
+                        about_user=about_user,
+                    )
+                    reply = await asyncio.to_thread(generate_response, prompt, n_predict=120)
+                    if reply and reply != "...":
                         try:
                             async with client.action(chat_id, "typing"):
                                 await asyncio.sleep(max(1, len(reply) * 0.15))
@@ -67,6 +79,5 @@ async def proactive_boredom_loop() -> None:
                                 await asyncio.to_thread(update_chat, chat_id_str, "Mai", reply)
                         except Exception as e:
                             logger.error("[PROACTIVE SEND ERROR] %s", e)
-
         except Exception as e:
             logger.exception("[PROACTIVE ERROR] %s", e)

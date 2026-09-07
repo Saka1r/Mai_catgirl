@@ -1,4 +1,3 @@
-# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -7,27 +6,19 @@ __pycache__/
 dist/
 build/
 .eggs/
-
-# Virtual env
 venv/
 .venv/
 env/
-
-# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# Secrets
 .env
 *.session
 *.session-journal
-
-# Data
 data/
+tmp/
 *.log
-
-# OS
 .DS_Store
 Thumbs.db
+*.npy
