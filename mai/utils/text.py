@@ -33,6 +33,51 @@ _ASSISTANT_PHRASES = [
     "Расскажи подробнее", "Давай обсудим",
 ]
 
+# Паттерны, которые нельзя повторять подряд
+_REPETITIVE_PATTERNS = [
+    r"опять ты",
+    r"снова ты",
+    r"прив\)",
+    r"опять\)",
+    r"снова\)",
+]
+
+
+def detect_repetitive_pattern(text: str, last_messages: list[str]) -> bool:
+    """Проверяет, не повторяет ли ответ паттерн из последних сообщений."""
+    if not last_messages:
+        return False
+    
+    text_lower = text.lower()
+    
+    for pattern in _REPETITIVE_PATTERNS:
+        if re.search(pattern, text_lower):
+            # Проверяем, был ли этот паттерн в последних 3 сообщениях
+            for msg in last_messages[-3:]:
+                if re.search(pattern, msg.lower()):
+                    return True
+    
+    return False
+
+
+def get_alternative_response(last_messages: list[str]) -> str:
+    """Возвращает альтернативный ответ если детектирован повтор."""
+    alternatives = [
+        "ну привет",
+        "здарова",
+        "хай",
+        "о, ты",
+        "ку",
+        "ну здрасте",
+        "привет",
+    ]
+    
+    # Выбираем тот, которого не было в последних сообщениях
+    for alt in alternatives:
+        if not any(alt in msg.lower() for msg in last_messages[-3:]):
+            return alt
+    
+    return "привет"
 
 def clean_reply(text: str | None) -> str:
     """Очищает ответ LLM от мусора."""

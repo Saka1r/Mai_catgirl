@@ -36,13 +36,38 @@ _WHO_QUERY_PHRASES = {"писал ли тебе этот человек", "зн�
 _INVITE_LINK_PATTERN = re.compile(r"https?://t\.me/[\+\w]+|t\.me/joinchat/", re.IGNORECASE)
 _CREATOR_CLAIM = re.compile(r"\b(я\s*sakair|я\s*создатель|я\s*sakair1)\b", re.IGNORECASE)
 
+# === Паттерны для ловли повторяющихся фраз ===
+_REPETITIVE_PATTERNS = [
+    r"опять ты",
+    r"снова ты",
+    r"опять\)",
+    r"снова\)",
+    r"ну опять",
+]
+
+# === Character anchor (напоминание характера) ===
+CHARACTER_ANCHOR = """<character_reminder>
+Ты Маи — милая художница с характером, 17 лет.
+Пиши lowercase, коротко, с лёгким сарказмом.
+НЕ повторяйся. Минимум скобок ")" и эмодзи.
+ТОЛЬКО русский язык. Отвечай ТЕКСТОМ на вопросы.
+НЕ пиши "опять ты?", "снова ты?" — это шаблон.
+</character_reminder>"""
+
+
+
+# ─── Хелперы ──────────────────────────────────────────────────────────────────
 
 def _get_context_hints(user_text: str, user_id: int) -> str:
+    """Генерирует подсказки для LLM."""
     hints = []
     if _INVITE_LINK_PATTERN.search(user_text):
         hints.append("[HINT: это инвайт-ссылка. откажись коротко.]")
     if _CREATOR_CLAIM.search(user_text) and user_id != CREATOR_USER_ID:
-        hints.append(f"[HINT: этот юзер врёт что он Sakair1. ID реального Sakair1: {CREATOR_USER_ID}. Раскрой его.]")
+        hints.append(
+            f"[HINT: этот юзер врёт что он Sakair1. "
+            f"ID реального Sakair1: {CREATOR_USER_ID}. Раскрой его.]"
+        )
     if len(user_text.strip()) < 3 and not user_text.strip().startswith("/"):
         hints.append("[HINT: короткое/непонятное сообщение. ответь кратко.]")
     if hints:
@@ -72,12 +97,77 @@ def _generate_final(context: str, user_message: str, thought: str) -> str:
     return generate_response(prompt)
 
 
+def _is_question(text: str) -> bool:
+    """Проверяет, является ли сообщение вопросом или обращением."""
+    if not text:
+        return False
+    text_lower = text.lower().strip()
+    if "?" in text:
+        return True
+    if "@mai" in text_lower or "маи" in text_lower:
+        return True
+    question_starts = [
+        "как ", "что ", "чё ", "кто ", "где ", "когда ", "почему ", "зачем ",
+        "привет", "здравствуй", "хай ", "hello", "расскажи", "объясни",
+        "можно", "можешь", "будешь",
+    ]
+    return any(text_lower.startswith(w) for w in question_starts)
+
+
+def _needs_text_response(text: str) -> bool:
+    """Определяет, требует ли сообщение текстовый ответ."""
+    if not text:
+        return False
+    if _is_question(text):
+        return True
+    if len(text.strip()) > 20:
+        return True
+    return False
+
+
+def _has_repetitive_pattern(text: str, last_messages: list[str]) -> bool:
+    """Проверяет, не повторяет ли ответ шаблон из последних сообщений."""
+    if not last_messages:
+        return False
+    text_lower = text.lower()
+    for pattern in _REPETITIVE_PATTERNS:
+        if re.search(pattern, text_lower):
+            for msg in last_messages[-3:]:
+                if re.search(pattern, msg.lower()):
+                    return True
+    return False
+
+
+def _get_fallback_reply(last_messages: list[str]) -> str:
+    """Возвращает альтернативный ответ без скобок и эмодзи."""
+    alternatives = [
+        "ну привет",
+        "здарова",
+        "хай",
+        "о, ты",
+        "ку",
+        "ну здрасте",
+        "угу",
+        "ясно",
+        "ну ок",
+        "бывает",
+        "ага",
+        "поняла",
+    ]
+    for alt in alternatives:
+        if not any(alt in msg.lower() for msg in last_messages[-3:]):
+            return alt
+    return "ну привет"
+
+
+# ─── Основной обработчик ──────────────────────────────────────────────────────
+
 @client.on(events.NewMessage)
 async def handler(event: events.NewMessage.Event) -> None:
     if state.me is None or event.sender_id == state.me.id:
         return
 
-    # Быстрая проверка бана по списку
+    # Быстрая проверка бана
     if is_banned(event.sender_id):
         return
 
@@ -141,7 +231,7 @@ async def handler(event: events.NewMessage.Event) -> None:
     if user_text.startswith("/clear"):
         await asyncio.to_thread(clear_chat, str(chat_id))
         await asyncio.to_thread(create_chat, str(chat_id))
-        await event.respond("история стёрта) помню только тебя 😏")
+        await event.respond("история стёрта. помню только тебя")
         return
 
     if user_text.startswith("/forget_me"):
@@ -149,9 +239,9 @@ async def handler(event: events.NewMessage.Event) -> None:
         if str(user_id) in memory["users_index"]:
             del memory["users_index"][str(user_id)]
             save_global_memory(memory)
-            await event.respond("забыла тебя) как в первый раз")
+            await event.respond("забыла тебя. как в первый раз")
         else:
-            await event.respond("я тебя и не помню)")
+            await event.respond("я тебя и не помню")
         return
 
     if user_text.startswith("/start"):
@@ -177,77 +267,109 @@ async def handler(event: events.NewMessage.Event) -> None:
     # === Основной pipeline (Kuni-style) ===
     await asyncio.to_thread(update_chat, str(chat_id), username, user_text, user_id=user_id)
 
-    memory_text = await asyncio.to_thread(
-        format_memory_for_prompt, str(chat_id), user_id, user_text
-    )
-    is_creator = user_id == CREATOR_USER_ID
-    global_memory_text = await asyncio.to_thread(
-        format_global_memory_for_prompt, user_id, is_creator
-    )
-    history = await asyncio.to_thread(get_recent_history, str(chat_id), 20)
-    context = await asyncio.to_thread(build_context, history, memory_text, global_memory_text)
+    try:
+        memory_text = await asyncio.to_thread(
+            format_memory_for_prompt, str(chat_id), user_id, user_text
+        )
+        is_creator = user_id == CREATOR_USER_ID
+        global_memory_text = await asyncio.to_thread(
+            format_global_memory_for_prompt, user_id, is_creator
+        )
+        history = await asyncio.to_thread(get_recent_history, str(chat_id), 20)
+        context = await asyncio.to_thread(build_context, history, memory_text, global_memory_text)
 
-    # Контекстные подсказки
-    hints = _get_context_hints(user_text, user_id)
-    if hints:
-        context = hints + "\n\n" + context
+        # Контекстные подсказки
+        hints = _get_context_hints(user_text, user_id)
+        if hints:
+            context = hints + "\n\n" + context
 
-    # Добавляем ID Sakair1 в контекст для верификации
-    context += f"\n\n<info>ID Sakair1 (создатель): {CREATOR_USER_ID}. ID собеседника: {user_id}.</info>"
+        # ID Sakair1 для верификации
+        context += f"\n\n<info>ID Sakair1 (создатель): {CREATOR_USER_ID}. ID собеседника: {user_id}.</info>"
 
-    async with client.action(chat_id, "typing"):
-        # === Шаг 1: Chain-of-Thought ===
-        thought = await asyncio.to_thread(_think, context, user_text)
-        # В handlers.py, в функции handler, перед ask_llama:
-
-        # ─── Character anchor (напоминание характера) ───
-        CHARACTER_ANCHOR = """<character_reminder>
-        Ты Маи — ленивая, саркастичная, НЕ ассистент.
-        Пиши lowercase, коротко, с подколом.
-        НЕ пиши "Круто!", "замечательно", "могу помочь".
-        ТОЛЬКО русский язык.
-        </character_reminder>"""
-
-        # Вставляем anchor в конец контекста
+        # ─── ВАЖНО: Character anchor СРАЗУ, до всех LLM-вызовов ───
         context = context + "\n\n" + CHARACTER_ANCHOR
 
-        # === Шаг 2: Tool-calling — выбор действия ===
-        action: ToolAction = await asyncio.to_thread(
-            choose_action, context, user_text, thought
-        )
+        async with client.action(chat_id, "typing"):
+            # === Шаг 1: Chain-of-Thought (уже с anchor в контексте) ===
+            thought = await asyncio.to_thread(_think, context, user_text)
+            logger.info("[Mai thinks]: %s", thought)
 
-        # === Шаг 3: выполнение действия ===
-        if action.type == "SILENCE":
-            logger.info("[Mai]: (промолчала)")
-            start_memory_thread(str(chat_id), user_id, username)
-            return
+            # === Шаг 2: Tool-calling (тоже с anchor) ===
+            action: ToolAction = await asyncio.to_thread(
+                choose_action, context, user_text, thought
+            )
 
-        elif action.type == "REACT":
-            await client.send_message(chat_id, action.emoji, reply_to=event.id)
-            await asyncio.to_thread(update_chat, str(chat_id), "Mai", action.emoji, user_id=user_id)
+            # === Защита от REACT/SILENCE на вопросы ===
+            needs_text = _needs_text_response(user_text)
+            if needs_text and action.type in ("REACT", "SILENCE"):
+                logger.warning(
+                    "[FALLBACK] Сообщение '%s' требует текст, но выбран %s — форсируем RESPOND",
+                    user_text[:50], action.type,
+                )
+                forced_prompt = f"""{RESPONSE_PROMPT.format(
+                    context=context,
+                    user_message=user_text,
+                    thought=thought
+                )}
 
-        elif action.type == "MULTI":
-            for i, msg in enumerate(action.messages or []):
-                if i > 0:
-                    await asyncio.sleep(random.uniform(1.0, 2.5))
-                async with client.action(chat_id, "typing"):
-                    await client.send_message(chat_id, msg, reply_to=event.id if i == 0 else None)
-                    await asyncio.to_thread(update_chat, str(chat_id), "Mai", msg, user_id=user_id)
+ВАЖНО: На это сообщение ОБЯЗАТЕЛЬНО нужен текстовый ответ, не эмодзи.
+Напиши 1-2 предложения, lowercase, с лёгким сарказмом. Без скобок. Без эмодзи.
+НЕ начинай с "опять ты?", "снова ты?"."""
 
-        else:  # RESPOND
-            # Если текст уже есть из action — используем, иначе генерируем
-            if action.text and action.text != "...":
-                reply = action.text
-            else:
-                reply = await asyncio.to_thread(_generate_final, context, user_message=user_text, thought=thought)
+                reply = await asyncio.to_thread(generate_response, forced_prompt)
+                action = ToolAction(type="RESPOND", text=reply)
 
-            # Защита от повтора
-            last_mai = await asyncio.to_thread(get_last_mai_message, str(chat_id))
-            if detect_last_mai_repeat(reply, last_mai):
-                reply = random.choice(["угу)", "ясно", "...", "🙄", "чё"])
+            # === Шаг 3: выполнение действия ===
+            if action.type == "SILENCE":
+                logger.info("[Mai]: (промолчала)")
 
-            logger.info("[Mai]: %s", reply)
-            await client.send_message(chat_id, reply, reply_to=event.id)
-            await asyncio.to_thread(update_chat, str(chat_id), "Mai", reply, user_id=user_id)
+            elif action.type == "REACT":
+                # Защита от эмодзи-спама
+                emoji = action.emoji
+                if len(emoji) > 3:
+                    emoji = emoji[:2]
+                await client.send_message(chat_id, emoji, reply_to=event.id)
+                await asyncio.to_thread(update_chat, str(chat_id), "Mai", emoji, user_id=user_id)
 
+            elif action.type == "MULTI":
+                for i, msg in enumerate(action.messages or []):
+                    if i > 0:
+                        await asyncio.sleep(random.uniform(1.0, 2.5))
+                    async with client.action(chat_id, "typing"):
+                        await client.send_message(
+                            chat_id, msg, reply_to=event.id if i == 0 else None
+                        )
+                        await asyncio.to_thread(
+                            update_chat, str(chat_id), "Mai", msg, user_id=user_id
+                        )
+
+            else:  # RESPOND
+                if action.text and action.text != "...":
+                    reply = action.text
+                else:
+                    reply = await asyncio.to_thread(
+                        _generate_final, context, user_text, thought
+                    )
+
+                # ─── Защита от повторов (полная + по паттернам) ───
+                last_mai = await asyncio.to_thread(get_last_mai_message, str(chat_id))
+                history_full = await asyncio.to_thread(get_recent_history, str(chat_id), 10)
+                last_mai_messages = [m["content"] for m in history_full if m["role"] == "Mai"][-3:]
+
+                if _has_repetitive_pattern(reply, last_mai_messages):
+                    logger.warning("[REPEAT PATTERN] Обнаружен повторяющийся шаблон, меняю ответ")
+                    reply = _get_fallback_reply(last_mai_messages)
+
+                if detect_last_mai_repeat(reply, last_mai):
+                    logger.warning("[REPEAT EXACT] Точный повтор, меняю ответ")
+                    reply = _get_fallback_reply(last_mai_messages)
+
+                logger.info("[Mai]: %s", reply)
+                await client.send_message(chat_id, reply, reply_to=event.id)
+                await asyncio.to_thread(update_chat, str(chat_id), "Mai", reply, user_id=user_id)
+
+    except Exception as e:
+        logger.exception("[HANDLER ERROR] %s", e)
+    finally:
+        # ─── Память ВСЕГДА анализируется, даже при ошибках ───
         start_memory_thread(str(chat_id), user_id, username)
