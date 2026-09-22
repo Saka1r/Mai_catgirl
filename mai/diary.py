@@ -10,25 +10,35 @@ from typing import Optional
 import numpy as np
 
 from mai.config import DIARY_FILE, DIARY_EMBEDDINGS, CREATOR_USER_ID
+from mai.config import BASE_DIR
 
 logger = logging.getLogger(__name__)
 
 # Lazy-loaded embedding model
 _embedding_model = None
 
+LOCAL_MODEL_PATH = str(BASE_DIR / "data" / "models" / "paraphrase-multilingual-MiniLM-L12-v2")
+
 
 def _get_embedding_model():
-    """Lazy-load sentence-transformers."""
+    """Загружает модель локально, без интернета."""
     global _embedding_model
     if _embedding_model is None:
         try:
             from sentence_transformers import SentenceTransformer
-            _embedding_model = SentenceTransformer(
-                "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-            )
-            logger.info("[DIARY] Embedding model loaded")
+            
+            # Сначала пробуем локальную модель
+            if os.path.exists(LOCAL_MODEL_PATH):
+                _embedding_model = SentenceTransformer(LOCAL_MODEL_PATH)
+                logger.info("[DIARY] Локальная модель загружена: %s", LOCAL_MODEL_PATH)
+            else:
+                # Fallback: пытаемся скачать (с интернетом)
+                logger.warning("[DIARY] Локальная модель не найдена, скачиваю...")
+                _embedding_model = SentenceTransformer(
+                    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+                )
         except Exception as e:
-            logger.error("[DIARY] Failed to load embedding model: %s", e)
+            logger.error("[DIARY] Ошибка загрузки embedding модели: %s", e)
             return None
     return _embedding_model
 
