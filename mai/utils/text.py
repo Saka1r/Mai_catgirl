@@ -1,4 +1,4 @@
-"""Очистка и постобработка текста."""
+"""Text cleaning and post-processing."""
 from __future__ import annotations
 import re
 
@@ -24,7 +24,6 @@ _META_TRIGGERS = [
     "(я просто выполняю", "(это два разных ответа",
 ]
 
-# Ассистентские фразы, которые нужно вычищать
 _ASSISTANT_PHRASES = [
     "Круто!", "Замечательно!", "Отлично!", "Прекрасно!",
     "это замечательное", "это прекрасное", "это отличное",
@@ -33,7 +32,6 @@ _ASSISTANT_PHRASES = [
     "Расскажи подробнее", "Давай обсудим",
 ]
 
-# Паттерны, которые нельзя повторять подряд
 _REPETITIVE_PATTERNS = [
     r"опять ты",
     r"снова ты",
@@ -42,56 +40,70 @@ _REPETITIVE_PATTERNS = [
     r"снова\)",
 ]
 
+# Новые стоп-фразы для блокировки утечек промпта
+_PROMPT_LEAK_TRIGGERS = [
+    "Use the internal thought",
+    "Use it as basis",
+    "as the basis of your reply",
+    "Your internal thought:",
+    "internal thought",
+    "as basis for",
+    "Based on my thought",
+    "According to my thought",
+]
 
-def detect_repetitive_pattern(text: str, last_messages: list[str]) -> bool:
-    """Проверяет, не повторяет ли ответ паттерн из последних сообщений."""
-    if not last_messages:
-        return False
-    
-    text_lower = text.lower()
-    
-    for pattern in _REPETITIVE_PATTERNS:
-        if re.search(pattern, text_lower):
-            # Проверяем, был ли этот паттерн в последних 3 сообщениях
-            for msg in last_messages[-3:]:
-                if re.search(pattern, msg.lower()):
-                    return True
-    
-    return False
+# Разрешённые эмодзи (остальные удаляем)
+_ALLOWED_EMOJIS = {"😳", "😴", "🙄", ":3", "😏", "👍", "😐", "❤️"}
 
-
-def get_alternative_response(last_messages: list[str]) -> str:
-    """Возвращает альтернативный ответ если детектирован повтор."""
-    alternatives = [
-        "ну привет",
-        "здарова",
-        "хай",
-        "о, ты",
-        "ку",
-        "ну здрасте",
-        "привет",
-    ]
-    
-    # Выбираем тот, которого не было в последних сообщениях
-    for alt in alternatives:
-        if not any(alt in msg.lower() for msg in last_messages[-3:]):
-            return alt
-    
-    return "привет"
 
 def clean_reply(text: str | None) -> str:
-    """Очищает ответ LLM от мусора."""
+    """Очищает ответ LLM от мусора, утечек промпта и лишних символов."""
     if not text:
         return ""
 
-    # Стоп-триггеры
-    for trigger in _STOP_TRIGGERS:
-        if trigger in text:
+    # ─── Стоп-триггеры (старые + новые) ───
+    for trigger in _STOP_TRIGGERS + _PROMPT_LEAK_TRIGGERS:
+        if trigger.lower() in text.lower():
             text = text.split(trigger)[0].strip()
+
+    # ─── Удаляем утечки промпта (английские фразы) ───
+    for leak in _PROMPT_LEAK_TRIGGERS:
+        text = re.sub(re.escape(leak), "", text, flags=re.IGNORECASE)
+
+    # ─── Удаляем неразрешённые эмодзи ───
+    # Оставляем только из _ALLOWED_EMOJIS
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "\U00002702-\U000027B0"
+        "\U000024C2-\U0001F251"
+        "]+",
+        flags=re.UNICODE
+    )
+    
+    def filter_emoji(match):
+        emoji = match.group(0)
+        # Оставляем только разрешённые
+        if emoji in _ALLOWED_EMOJIS:
+            return emoji
+        return ""  # удаляем неразрешённые
+    
+    text = emoji_pattern.sub(filter_emoji, text)
+
+    # ─── КРИТИЧЕСКИ ВАЖНО: удаляем избыточные скобки ")" ───
+    # Заменяем "прив)" на "прив", "норм)" на "норм", "ок)" на "ок"
+    text = re.sub(r"(\w)\)", r"\1", text)
+    # Удаляем одиночные ")" в начале/конце
+    text = re.sub(r"^\s*\)\s*", "", text)
+    text = re.sub(r"\s*\)\s*$", "", text)
+    # Удаляем множественные "))"
+    text = re.sub(r"\){2,}", "", text)
 
     # Повторяющаяся пунктуация
     text = re.sub(r"\.{4,}", "..", text)
-    text = re.sub(r"\){4,}", "))", text)
     text = re.sub(r"а{4,}", "ааа", text)
     text = re.sub(r"х{4,}", "ххх", text)
 
@@ -100,16 +112,15 @@ def clean_reply(text: str | None) -> str:
         if meta in text:
             text = text.split(meta)[0].strip()
 
-    # ─── НОВОЕ: Удаляем ассистентские фразы ───
+    # Ассистентские фразы
     for phrase in _ASSISTANT_PHRASES:
         if phrase in text:
             text = text.replace(phrase, "").strip()
 
-    # ─── НОВОЕ: Детекция китайских символов ───
-    # Если больше 20% текста — китайские иероглифы, возвращаем fallback
+    # Детекция китайских символов
     chinese_chars = len(re.findall(r'[\u4e00-\u9fff]', text))
     if len(text) > 0 and chinese_chars / len(text) > 0.2:
-        return ""  # Вернёт fallback "чё-то у меня голова болит"
+        return ""
 
     # Защита от повторов внутри одного сообщения
     sentences = re.split(r"(?<=[.!?])\s+|\n", text)
@@ -138,8 +149,45 @@ def clean_reply(text: str | None) -> str:
             unique.append(sentence)
 
     text = " ".join(unique[:3])
+    
+    # Удаляем двойные пробелы
+    text = re.sub(r"\s+", " ", text).strip()
+    
     return text.rstrip(". ").strip()
 
+def detect_repetitive_pattern(text: str, last_messages: list[str]) -> bool:
+    """Checks if the response repeats a pattern from the last messages."""
+    if not last_messages:
+        return False
+    
+    text_lower = text.lower()
+    
+    for pattern in _REPETITIVE_PATTERNS:
+        if re.search(pattern, text_lower):
+            for msg in last_messages[-3:]:
+                if re.search(pattern, msg.lower()):
+                    return True
+    
+    return False
+
+
+def get_alternative_response(last_messages: list[str]) -> str:
+    """Returns an alternative response if a repetition is detected."""
+    alternatives = [
+        "ну привет",
+        "здарова",
+        "хай",
+        "о, ты",
+        "ку",
+        "ну здрасте",
+        "привет",
+    ]
+    
+    for alt in alternatives:
+        if not any(alt in msg.lower() for msg in last_messages[-3:]):
+            return alt
+    
+    return "привет"
 
 def detect_last_mai_repeat(reply: str, last_mai: str | None) -> bool:
     """Проверяет повтор последнего сообщения."""
