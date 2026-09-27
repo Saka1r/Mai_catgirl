@@ -1,3 +1,5 @@
+<img src=image.png>
+
 # 🐱 Mai Userbot
 
 Ленивая кошечка-собеседница в Telegram на базе локальной LLM (llama.cpp вы можете использовать ollama и т.д). 
